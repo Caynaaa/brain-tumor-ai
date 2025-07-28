@@ -42,14 +42,14 @@ The goal is not real-world deployment, but to deepen understanding in:
 ---
 
 ## 📁 Project Structure (planned)
-
+```
 brain-tumor-detector/
 ├── notebooks/ # Training notebooks
 ├── src/ # Source code
 ├── saved_models/ # Exported weights
 ├── webapp/ # Frontend/backend code (TBD)
 ├── README.md
-
+```
 ---
 
 ## ⚠️ Disclaimer
