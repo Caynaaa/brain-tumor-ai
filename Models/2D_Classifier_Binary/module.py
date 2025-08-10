@@ -72,8 +72,12 @@ class DenseNetClassifierBinary(pl.LightningModule):
         # Initialize metrics
         # Binary Accuracy and AUROC for binary classification
         self.train_acc = BinaryAccuracy()
+        
         self.val_acc = BinaryAccuracy()
         self.val_auroc = AUROC(task="binary")
+        
+        self.test_acc = BinaryAccuracy()
+        self.test_auroc = AUROC(task="binary")
 
     # Define the forward pass
     # Defines how input x flows through the model — called during training, validation, and testing
@@ -117,7 +121,8 @@ class DenseNetClassifierBinary(pl.LightningModule):
         logits = self(x).squeeze(1)
         loss = self.criterion(logits, y.float())
         acc = self.val_acc(logits, y)
-        auroc = self.val_auroc(logits, y)
+        probs = torch.sigmoid(logits)
+        auroc = self.val_auroc(probs, y)
         self.log("val_loss", loss, 
                  on_step=False, 
                  on_epoch=True
@@ -133,6 +138,39 @@ class DenseNetClassifierBinary(pl.LightningModule):
                  prog_bar=True
         )
         return loss
+    
+    # Define the test step
+    def test_step(self, batch, batch_idx):
+        x, y = batch
+        logits = self(x).squeeze(1)
+        loss = self.criterion(logits, y.float())
+        acc = self.test_acc(logits, y)
+        probs = torch.sigmoid(logits)
+        auroc = self.test_auroc(probs, y)
+        self.log("test_loss", loss, 
+                 on_step=False, 
+                 on_epoch=True
+        )
+        self.log("test_acc", acc,
+                 on_step=False, 
+                 on_epoch=True,
+                 prog_bar=True
+        )
+        self.log("test_auroc", auroc,
+                 on_step=False, 
+                 on_epoch=True,
+                 prog_bar=True
+        )
+    
+    # Define prediction step
+    # This is called when making predictions (e.g., during inference)
+    def predict_step(self, batch, batch_idx, dataloader_idx=0):
+        if isinstance(batch, (list, tuple)) and len(batch) == 2:
+            x, _ = batch
+        else:
+            x = batch
+        logits = self(x).squeeze(1)
+        return torch.sigmoid(logits)
     
    # Define Optimizer and learning rate scheduler
     def configure_optimizers(self):
