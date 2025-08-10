@@ -50,7 +50,13 @@ class DenseNetClassifierBinary(pl.LightningModule):
         for param in backbone.parameters():
             param.requires_grad = False
             
-        # # Selectively unfreeze specified layers
+        # Unfreeze the classifier head
+        # This allows the model to learn a new binary classification head
+        for name, param in backbone.named_parameters():
+            if "classifier" in name:
+                param.requires_grad = True
+            
+        # Selectively unfreeze specified layers
         if unfreeze_layers is not None:
             # Unfreeze specific layers if provided
             for name, param in backbone.named_parameters():
@@ -174,9 +180,12 @@ class DenseNetClassifierBinary(pl.LightningModule):
     
    # Define Optimizer and learning rate scheduler
     def configure_optimizers(self):
+        # Filter parameters to optimize
+        params_to_optimize = filter(lambda p:p.requires_grad, self.model.parameters())
+        
         # Use AdamW optimizer with specified learning rate and weight decay
         optimizer = optim.AdamW(
-            self.model.parameters(),
+            params_to_optimize,
             lr = self.hparams.learning_rate,
             weight_decay = self.hparams.weight_decay
         )
