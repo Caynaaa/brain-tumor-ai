@@ -58,7 +58,6 @@ brain-tumor-ai/
 │ ├── datamodule.py # DataModule: handles loading & preprocessing
 │ ├── transform.py # Image augmentations (Albumentations)
 │ ├── helper.py # Utility functions (e.g., seed, device)
-│ ├── config.py # Config: model name, hyperparams, data paths
 │ ├── callbacks.py # Callbacks (checkpoint, early stopping, etc.)
 │ ├── runner.ipynb # Notebook for training/evaluation (Colab-ready)
 │ └── checkpoint/ # Saved model weights (.ckpt, .pt if exported)
