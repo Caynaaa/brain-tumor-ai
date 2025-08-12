@@ -1,4 +1,4 @@
-"""
+    """
 This file defines the PyTorch Lightning Module for binary brain tumor classification.
 
 It handles:
@@ -194,8 +194,7 @@ class DenseNetClassifierBinary(pl.LightningModule):
             optimizer, 
             mode='min', 
             factor=0.1, 
-            patience=2,
-            monitor='val_loss'
+            patience=2
         )
         # Return the optimizer and scheduler configuration
         # This is compatible with PyTorch Lightning's Trainer
@@ -205,6 +204,7 @@ class DenseNetClassifierBinary(pl.LightningModule):
             "lr_scheduler": {
                 "scheduler": scheduler,
                 "monitor": "val_loss",
-                "interval": "epoch"
+                "interval": "epoch",
+                "frequency": 1
             }
         }
