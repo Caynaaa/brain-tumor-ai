@@ -180,5 +180,5 @@ pyrightconfig.json
 *.cpkt
 *.pth
 *.pt
-checkpoints/
+checkpoint/
 save_models/
