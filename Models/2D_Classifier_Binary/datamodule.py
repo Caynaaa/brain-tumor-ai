@@ -75,7 +75,7 @@ class CustomDataset(Dataset):
     
 # Define the "LightningDataModule"
 class BrainTumorDataModule(pl.LightningDataModule):
-    def __init__(self, train_data, val_data, batch_size=64, img_size=(224, 224), num_workers=4):
+    def __init__(self, train_data, val_data, test_data=None, batch_size=64, img_size=(224, 224), num_workers=4):
         """
         PyTorch Lightning DataModule for binary brain tumor classification.
 
@@ -92,6 +92,7 @@ class BrainTumorDataModule(pl.LightningDataModule):
         super().__init__()
         self.train_data = train_data
         self.val_data = val_data
+        self.test_data = test_data
         self.batch_size = batch_size
         self.img_size = img_size
         self.num_workers = num_workers
@@ -104,13 +105,19 @@ class BrainTumorDataModule(pl.LightningDataModule):
         
         # Create datasets using the CustomDataset class
         # Assuming train_data and val_data are tuples of (image_paths, labels)
-        train_images, train_labels = self.train_data
-        val_images, val_labels = self.val_data
+        if stage == 'fit' or stage is None:
+            train_images, train_labels = self.train_data
+            val_images, val_labels = self.val_data
+            self.train_dataset = CustomDataset(train_images, train_labels, transform=train_T)
+            self.val_dataset = CustomDataset(val_images, val_labels, transform=val_T)
         
-        # Initialize the datasets
-        self.train_dataset = CustomDataset(train_images, train_labels, transform=train_T)
-        self.val_dataset = CustomDataset(val_images, val_labels, transform=val_T)
-        
+        if stage == 'test' or stage is None:
+            if self.test_data is not None:
+                test_images, test_labels = self.test_data
+            else:
+                test_images, test_labels = self.val_data
+            self.test_dataset = CustomDataset(test_images, test_labels, transform=val_T)
+            
     # Define DataLoaders for training and validation
     # These will be used by the Trainer during training/validation
     def train_dataloader(self):
@@ -126,6 +133,12 @@ class BrainTumorDataModule(pl.LightningDataModule):
                           shuffle = False,
                           num_workers = self.num_workers
                         )
-        
+    
+    def test_dataloader(self):
+        return DataLoader(self.test_dataset,
+                          batch_size = self.batch_size,
+                          shuffle = False,
+                          num_workers = self.num_workers
+                        )
     
         

@@ -29,7 +29,7 @@ def get_transform(img_size=(224, 224)):
     # Define the training transformations
     train_transform = A.Compose([
         # Resize the image to the target size
-        A.Resize(img_size),
+        A.Resize(*img_size),
         
         # Random horizontal and vertical flips
         A.HorizontalFlip(p=0.5),
@@ -53,7 +53,7 @@ def get_transform(img_size=(224, 224)):
     
     # Define the validation transformations
     val_transform = A.Compose([
-        A.Resize(img_size),
+        A.Resize(*img_size),
         A.Normalize(mean=[0.485, 0.456, 0.406], 
                     std=[0.229, 0.224, 0.225]),
         A.ToTensorV2() 

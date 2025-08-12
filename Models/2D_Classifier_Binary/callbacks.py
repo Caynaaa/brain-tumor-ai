@@ -6,7 +6,7 @@ This file provides two essential callbacks:
 - EarlyStopping: Stops training early if the monitored metric does not improve.
 
 Usage:
-    callbacks = get_callbacks(monitor_v='val_loss', mode_v='min')
+    callbacks = get_callbacks(monitor='val_loss', mode='min')
     trainer = pl.Trainer(callbacks=callbacks)
 
 Note:
@@ -14,49 +14,45 @@ Note:
 - Only the model weights are saved (not full LightningModule).
 """
 
-
-# Import necessary libraries
 from pytorch_lightning.callbacks import ModelCheckpoint, EarlyStopping
 
-# Callback functions for training a binary classifier using PyTorch Lightning
-def get_callbacks(monitor_v='val_loss', mode_v='min', patience_v=3):
+def get_callbacks(dirpath='checkpoints/binary_classifier',
+                  filename='best-val-loss-{epoch:02d}-{val_loss:.2f}',
+                  monitor='val_loss',
+                  mode='min',
+                  patience=3):
     """
     Returns a list of callbacks for training:
     - ModelCheckpoint: Saves the best model weights based on monitored metric.
-    - EarlyStopping: Stops training if no improvement is seen in given patience.
+    - EarlyStopping: Stops training if no improvement is seen within the given patience.
 
     Args:
-        monitor_v (str): Metric to monitor, e.g., 'val_loss' or 'val_acc'.
-        mode_v (str): 'min' or 'max' depending on whether lower or higher is better.
+        dirpath (str): Directory to save checkpoints.
+        filename (str): Filename pattern for the saved model.
+        monitor (str): Metric to monitor, e.g., 'val_loss' or 'val_acc'.
+        mode (str): 'min' or 'max' depending on whether lower or higher is better.
+        patience (int): Number of epochs with no improvement after which training will be stopped.
 
     Returns:
         list: [ModelCheckpoint, EarlyStopping]
     """
     
-    # Save the best model weights (based on val_loss by default)
+    # Save the best model weights
     checkpoint_cb = ModelCheckpoint(
-        # Folder to save checkpoints
-        dirpath = 'checkpoints/binary_classifier',
-        # Custom filename format
-        filename = 'best-val-loss-{epoch:02d}-{val_loss:.2f}',
-        # Metric to track
-        monitor = monitor_v,
-        # Mode: 'min' for loss, 'max' for accuracy
-        mode = mode_v,
-        # Only save the best model weights
-        save_top_k = 1,
-        # Save only the model weights, not the full LightningModule
-        save_weight_only = True,
-        # Verbose logging
-        verbose = True
+        dirpath=dirpath,
+        filename=filename,
+        monitor=monitor,
+        mode=mode,
+        save_top_k=1,
+        save_weights_only=True,
+        verbose=True
     )
     
-    # Early stopping callback
+    # Early stopping
     early_stopping_cb = EarlyStopping(
-        monitor = monitor_v,
-        mode = mode_v,
-        patience = patience_v
+        monitor=monitor,
+        mode=mode,
+        patience=patience
     )
     
     return [checkpoint_cb, early_stopping_cb]
-    
