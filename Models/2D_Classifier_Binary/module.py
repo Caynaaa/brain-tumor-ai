@@ -1,4 +1,4 @@
-    """
+"""
 This file defines the PyTorch Lightning Module for binary brain tumor classification.
 
 It handles:
