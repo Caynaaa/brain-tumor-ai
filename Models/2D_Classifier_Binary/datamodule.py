@@ -34,7 +34,7 @@ from transform import get_transform
 
 # Define the "Custom Dataset"
 class CustomDataset(Dataset):
-    def __init__(self, image_paths, labels, transform=None):
+    def __init__(self, img_input, labels, transform=None):
         """
         Custom Dataset for loading brain tumor images and corresponding labels.
 
@@ -46,20 +46,32 @@ class CustomDataset(Dataset):
         """
         
         # Initialize the dataset with image paths, labels, and transformations
-        self.image_paths = image_paths
+        self.img_input= img_input
         self.labels = labels
         self.transform = transform
     
     # Override the __len__ and __getitem__ methods
     # to make it compatible with PyTorch DataLoader
     def __len__(self):
-        return len(self.image_paths)
+        return len(self.img_input)
     
     def __getitem__(self, idx):
-        # Load image using PIL and convert to RGB
-        img = Image.open(self.image_paths[idx]).convert('RGB')
-        # Convert to numpy array for Albumentations
-        img = np.array(img)
+        img_idx = self.img_input[idx]
+        
+        if isinstance(img_idx, str):
+            img = Image.open(img_idx)
+            img = img.convert('RGB')
+            img = np.array(img)
+        
+        elif isinstance(img_idx, Image.Image):
+            img = img_idx.convert('RGB')
+            img = np.array(img)
+        
+        elif isinstance(img_idx, np.ndarray):
+            img = img_idx
+        
+        else:
+            raise ValueError("Unsupported image input type. Must be str, PIL Image, or numpy array.")
         
         # Get the corresponding label
         labels = self.labels[idx]
