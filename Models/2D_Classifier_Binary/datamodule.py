@@ -35,16 +35,6 @@ from transform import get_transform
 # Define the "Custom Dataset"
 class CustomDataset(Dataset):
     def __init__(self, img_input, labels, transform=None):
-        """
-        Custom Dataset for loading brain tumor images and corresponding labels.
-
-        Args:
-            image_paths (list): A list of file paths to the input images.
-            labels (list): A list of binary labels corresponding to each image.
-            transform (callable, optional): Albumentations transformation to apply to each image.
-                                            Defaults to None.
-        """
-        
         # Initialize the dataset with image paths, labels, and transformations
         self.img_input= img_input
         self.labels = labels
