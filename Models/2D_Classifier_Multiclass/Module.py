@@ -40,6 +40,7 @@ class DenseNetClassifierMulticlass(pl.LightningModule):
         weight_decay=1e-5,
         unfreeze_layers=None,
         backbone_model=models.densenet121,
+        class_weight = None
         ):
                
         # Initialize the parent class
@@ -75,7 +76,14 @@ class DenseNetClassifierMulticlass(pl.LightningModule):
         
         # Store the modified model
         self.model = backbone
-        self.criterion = nn.CrossEntropyLoss()
+        
+        # Define the loss function
+        # If class weights are provided, use weighted CrossEntropyLoss
+        if class_weight is not None:
+            class_weight = torch.tensor(class_weight, dtype=torch.float32)    
+            self.criterion = nn.CrossEntropyLoss(weight=class_weight)
+        else:
+            self.criterion = nn.CrossEntropyLoss()
         
         # Initialize metrics
         # Multiclass Accuracy and AUROC for multiclass classification

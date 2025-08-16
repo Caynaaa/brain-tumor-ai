@@ -14,7 +14,7 @@ Usage:
 from pytorch_lightning.loggers import TensorBoardLogger
 
 # Get a TensorBoard logger instance for logging training metrics
-def get_logger(log_dir='logs', name='2D_binary_classifier'):
+def get_logger(log_dir='logs', name='multiclass_classifier'):
     """
     Returns a TensorBoard logger.
 
