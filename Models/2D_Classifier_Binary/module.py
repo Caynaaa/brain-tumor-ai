@@ -31,7 +31,7 @@ import torch.optim as optim
 from torch.optim.lr_scheduler import ReduceLROnPlateau
 from torchvision import models
 from torchmetrics.classification import BinaryAccuracy, AUROC
-from imbalanced_data_utils import compute_poss_weight
+from utils import compute_poss_weight
 
 # Define the "Lightning Module" for binary classification
 class DenseNetClassifierBinary(pl.LightningModule):
