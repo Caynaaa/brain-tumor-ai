@@ -31,7 +31,7 @@ from PIL import Image
 from torch.utils.data import DataLoader, Dataset
 import pytorch_lightning as pl
 from transform import get_transform
-from imbalanced_data_utils import make_weights_sampler 
+from utils import make_weights_sampler 
 
 # Define the "Custom Dataset"
 class CustomDataset(Dataset):
