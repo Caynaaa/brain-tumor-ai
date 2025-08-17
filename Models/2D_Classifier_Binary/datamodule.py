@@ -117,7 +117,7 @@ class BrainTumorDataModule(pl.LightningDataModule):
                 self.train_dataset = CustomDataset(train_images, train_labels, transform=train_T)
                 self.val_dataset = CustomDataset(val_images, val_labels, transform=val_T)
             
-                self.tarin_labels = train_labels
+                self.train_labels = train_labels
                 self.val_labels = val_labels
             
         if stage == 'test' or stage is None:
