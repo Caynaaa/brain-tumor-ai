@@ -108,11 +108,12 @@ class BrainTumorDataModule(pl.LightningDataModule):
         # Create datasets using the CustomDataset class
         # Assuming train_data and val_data are tuples of (image_paths, labels)
         if stage == 'fit' or stage is None:
-            train_images, train_labels = self.train_data
-            val_images, val_labels = self.val_data
-            self.train_dataset = CustomDataset(train_images, train_labels, transform=train_T)
-            self.val_dataset = CustomDataset(val_images, val_labels, transform=val_T)
-        
+            if self.train_data is not None and self.val_data is not None:
+                train_images, train_labels = self.train_data
+                val_images, val_labels = self.val_data
+                self.train_dataset = CustomDataset(train_images, train_labels, transform=train_T)
+                self.val_dataset = CustomDataset(val_images, val_labels, transform=val_T)
+            
         if stage == 'test' or stage is None:
             if self.test_data is not None:
                 test_images, test_labels = self.test_data
