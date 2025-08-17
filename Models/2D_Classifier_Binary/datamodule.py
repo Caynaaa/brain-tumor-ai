@@ -77,7 +77,7 @@ class CustomDataset(Dataset):
     
 # Define the "LightningDataModule"
 class BrainTumorDataModule(pl.LightningDataModule):
-    def __init__(self, train_data, val_data, test_data=None, batch_size=64, img_size=(224, 224), num_workers=4):
+    def __init__(self, train_data=None, val_data=None, test_data=None, batch_size=64, img_size=(224, 224), num_workers=4):
         """
         PyTorch Lightning DataModule for binary brain tumor classification.
 
