@@ -84,9 +84,13 @@ class DenseNetClassifierBinary(pl.LightningModule):
     # Setup method to compute pos_Weight for BCEWithLogitsLoss
     # This is called by PyTorch Lightning Trainer before training starts
     def setup(self, stage=None):
-        train_labels = self.trainer.datamodule.train_labels
-        pos_weight_v = compute_poss_weight(torch.tensor(train_labels))
-        self.criterion = nn.BCEWithLogitsLoss(pos_weight=pos_weight_v)
+        if stage == 'fit' and hasattr(self.trainer.datamodule, 'train_labels'):
+            train_labels = self.trainer.datamodule.train_labels
+            pos_weight_v = compute_poss_weight(torch.tensor(train_labels))
+            self.criterion = nn.BCEWithLogitsLoss(pos_weight=pos_weight_v)
+        else:
+            # fallback for validation/test stages
+            self.criterion = nn.BCEWithLogitsLoss()
 
     # Define the forward pass
     # Defines how input x flows through the model — called during training, validation, and testing
