@@ -31,6 +31,7 @@ from PIL import Image
 from torch.utils.data import DataLoader, Dataset
 import pytorch_lightning as pl
 from transform import get_transform
+from imbalanced_data_utils import make_weights_sampler 
 
 # Define the "Custom Dataset"
 class CustomDataset(Dataset):
@@ -77,7 +78,7 @@ class CustomDataset(Dataset):
     
 # Define the "LightningDataModule"
 class BrainTumorDataModule(pl.LightningDataModule):
-    def __init__(self, train_data=None, val_data=None, test_data=None, batch_size=64, img_size=(224, 224), num_workers=4):
+    def __init__(self, train_data=None, val_data=None, test_data=None, batch_size=64, img_size=(224, 224), num_workers=4, use_sampler=False):
         """
         PyTorch Lightning DataModule for binary brain tumor classification.
 
@@ -98,6 +99,7 @@ class BrainTumorDataModule(pl.LightningDataModule):
         self.batch_size = batch_size
         self.img_size = img_size
         self.num_workers = num_workers
+        self.use_sampler = use_sampler
     
     # Setup method to create datasets and transformations
     # This is called by PyTorch Lightning Trainer
@@ -120,16 +122,26 @@ class BrainTumorDataModule(pl.LightningDataModule):
             else:
                 test_images, test_labels = self.val_data
             self.test_dataset = CustomDataset(test_images, test_labels, transform=val_T)
-            
+    
     # Define DataLoaders for training and validation
     # These will be used by the Trainer during training/validation
     def train_dataloader(self):
-        return DataLoader(self.train_dataset,
-                          batch_size = self.batch_size,
-                          shuffle = True,
-                          num_workers = self.num_workers
+        # make sampler
+        if self.use_sampler and self.train_data is not None:
+            self.train_images, self.train_labels = self.train_data
+            sampler = make_weights_sampler(torch.tensor(self.train_labels))
+            return DataLoader(self.train_dataset,
+                              batch_size = self.batch_size,
+                              sampler = sampler,
+                              num_workers = self.num_workers
                         )
-    
+        else:
+            return DataLoader(self.train_dataset,
+                            batch_size = self.batch_size,
+                            shuffle = True,
+                            num_workers = self.num_workers
+                            )
+        
     def val_dataloader(self):
         return DataLoader(self.val_dataset,
                           batch_size = self.batch_size,
