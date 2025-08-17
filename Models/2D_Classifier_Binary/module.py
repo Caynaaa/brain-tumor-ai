@@ -31,6 +31,7 @@ import torch.optim as optim
 from torch.optim.lr_scheduler import ReduceLROnPlateau
 from torchvision import models
 from torchmetrics.classification import BinaryAccuracy, AUROC
+from imbalanced_data_utils import compute_poss_weight
 
 # Define the "Lightning Module" for binary classification
 class DenseNetClassifierBinary(pl.LightningModule):
@@ -43,20 +44,19 @@ class DenseNetClassifierBinary(pl.LightningModule):
         super().__init__()
         # Save hyperparameters for logging
         self.save_hyperparameters()
+        self.criterion = None
         
         # Load a pre-trained DenseNet121 model
         backbone = models.densenet121(pretrained=True)
         
         # freeze all layers
         for param in backbone.parameters():
-            param.requires_grad = False
-            
+            param.requires_grad = False 
         # Unfreeze the classifier head
         # This allows the model to learn a new binary classification head
         for name, param in backbone.named_parameters():
             if "classifier" in name:
                 param.requires_grad = True
-            
         # Selectively unfreeze specified layers
         if unfreeze_layers is not None:
             # Unfreeze specific layers if provided
@@ -68,23 +68,25 @@ class DenseNetClassifierBinary(pl.LightningModule):
         
         # Replace classifier head
         num_features = backbone.classifier.in_features
-        
         # Replace classifier head for binary output
         backbone.classifier = nn.Linear(num_features, 1)
-        
         # Store the modified model
         self.model = backbone
-        self.criterion = nn.BCEWithLogitsLoss()
         
         # Initialize metrics
         # Binary Accuracy and AUROC for binary classification
         self.train_acc = BinaryAccuracy()
-        
         self.val_acc = BinaryAccuracy()
         self.val_auroc = AUROC(task="binary")
-        
         self.test_acc = BinaryAccuracy()
         self.test_auroc = AUROC(task="binary")
+    
+    # Setup method to compute pos_Weight for BCEWithLogitsLoss
+    # This is called by PyTorch Lightning Trainer before training starts
+    def setup(self, stage=None):
+        train_labels = self.trainer.datamodule.train_labels
+        pos_weight_v = compute_poss_weight(torch.tensor(train_labels))
+        self.criterion = nn.BCEWithLogitsLoss(pos_weight=pos_weight_v)
 
     # Define the forward pass
     # Defines how input x flows through the model — called during training, validation, and testing
