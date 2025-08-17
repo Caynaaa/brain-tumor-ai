@@ -113,8 +113,12 @@ class BrainTumorDataModule(pl.LightningDataModule):
             if self.train_data is not None and self.val_data is not None:
                 train_images, train_labels = self.train_data
                 val_images, val_labels = self.val_data
+                
                 self.train_dataset = CustomDataset(train_images, train_labels, transform=train_T)
                 self.val_dataset = CustomDataset(val_images, val_labels, transform=val_T)
+            
+                self.tarin_labels = train_labels
+                self.val_labels = val_labels
             
         if stage == 'test' or stage is None:
             if self.test_data is not None:
@@ -127,8 +131,7 @@ class BrainTumorDataModule(pl.LightningDataModule):
     # These will be used by the Trainer during training/validation
     def train_dataloader(self):
         # make sampler
-        if self.use_sampler and self.train_data is not None:
-            self.train_images, self.train_labels = self.train_data
+        if self.use_sampler and self.train_labels is not None:
             sampler = make_weights_sampler(torch.tensor(self.train_labels))
             return DataLoader(self.train_dataset,
                               batch_size = self.batch_size,
@@ -140,7 +143,7 @@ class BrainTumorDataModule(pl.LightningDataModule):
                             batch_size = self.batch_size,
                             shuffle = True,
                             num_workers = self.num_workers
-                            )
+                        )
         
     def val_dataloader(self):
         return DataLoader(self.val_dataset,
