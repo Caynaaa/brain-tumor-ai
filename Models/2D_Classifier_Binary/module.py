@@ -73,7 +73,7 @@ class DenseNetClassifierBinary(pl.LightningModule):
         # Replace classifier head
         num_features = backbone.classifier.in_features
         # Replace classifier head for binary output
-        backbone.classifier = nn.Linear(num_features, 1)
+        backbone.classifier = nn.Linear(num_features, 2)
         # Store the modified model
         self.model = backbone
         
