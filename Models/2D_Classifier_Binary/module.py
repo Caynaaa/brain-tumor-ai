@@ -31,20 +31,24 @@ import torch.optim as optim
 from torch.optim.lr_scheduler import ReduceLROnPlateau
 from torchvision import models
 from torchmetrics.classification import BinaryAccuracy, AUROC
-from utils import compute_poss_weight
+from utils import class_weights
 
 # Define the "Lightning Module" for binary classification
 class DenseNetClassifierBinary(pl.LightningModule):
     def __init__(self,
                  learning_rate=1e-3,
                  weight_decay=1e-5,
-                 unfreeze_layers=None
+                 unfreeze_layers=None,
+                 use_class_weight = False
     ):
         # Initialize the parent class
         super().__init__()
         # Save hyperparameters for logging
         self.save_hyperparameters()
         self.criterion = None
+        self.learning_rate = learning_rate
+        self.weight_decay = weight_decay
+        self.use_class_weight = use_class_weight
         
         # Load a pre-trained DenseNet121 model
         backbone = models.densenet121(pretrained=True)
@@ -84,13 +88,14 @@ class DenseNetClassifierBinary(pl.LightningModule):
     # Setup method to compute pos_Weight for BCEWithLogitsLoss
     # This is called by PyTorch Lightning Trainer before training starts
     def setup(self, stage=None):
-        if stage == 'fit' and hasattr(self.trainer.datamodule, 'train_labels'):
+        if (stage == 'fit' or stage is None) and self.use_class_weight:
             train_labels = self.trainer.datamodule.train_labels
-            pos_weight_v = compute_poss_weight(torch.tensor(train_labels))
-            self.criterion = nn.BCEWithLogitsLoss(pos_weight=pos_weight_v)
+            class_weights_v = class_weights(torch.tensor(train_labels), num_classes=2)
+            class_weights_v = class_weights_v.to(self.device)
+            self.criterion = nn.CrossEntropyLoss(weight=class_weights_v)
         else:
             # fallback for validation/test stages
-            self.criterion = nn.BCEWithLogitsLoss()
+            self.criterion = nn.CrossEntropyLoss()
 
     # Define the forward pass
     # Defines how input x flows through the model — called during training, validation, and testing
