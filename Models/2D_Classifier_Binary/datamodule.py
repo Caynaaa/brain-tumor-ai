@@ -31,7 +31,7 @@ from PIL import Image
 from torch.utils.data import DataLoader, Dataset
 import pytorch_lightning as pl
 from transform import get_transform
-from utils import make_weights_sampler 
+from utils import make_random_sampler
 
 # Define the "Custom Dataset"
 class CustomDataset(Dataset):
@@ -132,7 +132,7 @@ class BrainTumorDataModule(pl.LightningDataModule):
     def train_dataloader(self):
         # make sampler
         if self.use_sampler and self.train_labels is not None:
-            sampler = make_weights_sampler(torch.tensor(self.train_labels))
+            sampler = make_random_sampler(torch.tensor(self.train_labels))
             return DataLoader(self.train_dataset,
                               batch_size = self.batch_size,
                               sampler = sampler,
