@@ -13,7 +13,7 @@ def class_weights(labels: torch.tensor, num_classes: int) -> torch.tensor:
     Returns:
         torch.Tensor: Weights for each class (size = num_classes).
     """
-    labels = np.array(labels.cpu())
+    labels = labels.cpu().numpy().astype(int)
     class_weights = compute_class_weight(
         class_weight = "balanced",
         classes = np.arange(num_classes),
