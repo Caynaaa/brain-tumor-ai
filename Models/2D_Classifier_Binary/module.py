@@ -90,7 +90,7 @@ class DenseNetClassifierBinary(pl.LightningModule):
     def setup(self, stage=None):
         if (stage == 'fit' or stage is None) and self.use_class_weights:
             train_labels = self.trainer.datamodule.train_labels
-            train_labels = torch.tensor(train_labels).to(self.device) 
+            train_labels = torch.tensor(train_labels, dtype=torch.long).to(self.device) 
             class_weights = compute_class_weights(train_labels, num_classes=2)
             class_weights = class_weights.float().to(self.device)
             self.criterion = nn.CrossEntropyLoss(weight=class_weights)
