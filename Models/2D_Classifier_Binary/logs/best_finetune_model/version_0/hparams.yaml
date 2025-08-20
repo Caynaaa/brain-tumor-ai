@@ -1,0 +1,5 @@
+learning_rate: 1.0e-05
+weight_decay: 1.0e-06
+unfreeze_layers:
+- features.denseblock4
+- features.norm5
