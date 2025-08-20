@@ -30,8 +30,8 @@ import pytorch_lightning as pl
 import torch.optim as optim
 from torch.optim.lr_scheduler import ReduceLROnPlateau
 from torchvision import models
-from torchmetrics.classification import BinaryAccuracy, AUROC
-from utils import compute_poss_weight
+from torchmetrics.classification import MulticlassAccuracy, MulticlassAUROC
+from utils import compute_class_weights
 
 # Define the "Lightning Module" for binary classification
 class DenseNetClassifierBinary(pl.LightningModule):
@@ -39,7 +39,7 @@ class DenseNetClassifierBinary(pl.LightningModule):
                  learning_rate=1e-3,
                  weight_decay=1e-5,
                  unfreeze_layers=None,
-                 use_pos_weight = False
+                 use_class_weights = False
     ):
         # Initialize the parent class
         super().__init__()
@@ -48,7 +48,7 @@ class DenseNetClassifierBinary(pl.LightningModule):
         self.criterion = None
         self.learning_rate = learning_rate
         self.weight_decay = weight_decay
-        self.use_pos_weight = use_pos_weight
+        self.use_class_weights = use_class_weights
         
         # Load a pre-trained DenseNet121 model
         backbone = models.densenet121(pretrained=True)
@@ -73,29 +73,30 @@ class DenseNetClassifierBinary(pl.LightningModule):
         # Replace classifier head
         num_features = backbone.classifier.in_features
         # Replace classifier head for binary output
-        backbone.classifier = nn.Linear(num_features, 1)
+        backbone.classifier = nn.Linear(num_features, 2)
         # Store the modified model
         self.model = backbone
         
         # Initialize metrics
         # Binary Accuracy and AUROC for binary classification
-        self.train_acc = BinaryAccuracy(threshold=0.5)
-        self.val_acc = BinaryAccuracy(threshold=0.5)
-        self.val_auroc = AUROC(task="binary")
-        self.test_acc = BinaryAccuracy(threshold=0.5)
-        self.test_auroc = AUROC(task="binary")
+        self.train_acc = MulticlassAccuracy(num_classes=2)
+        self.val_acc = MulticlassAccuracy(num_classes=2)
+        self.val_auroc = MulticlassAUROC(num_classes=2)
+        self.test_acc = MulticlassAccuracy(num_classes=2)
+        self.test_auroc = MulticlassAUROC(num_classes=2)
     
     # Setup method to compute pos_Weight for BCEWithLogitsLoss
     # This is called by PyTorch Lightning Trainer before training starts
     def setup(self, stage=None):
-        if (stage == 'fit' or stage is None) and self.use_pos_weight:
-            train_labels = self.trainer.datamodule.train_labels.cpu()
-            pos_weight = compute_poss_weight(torch.tensor(train_labels))
-            pos_weight = pos_weight.to(self.device)  
-            self.criterion = nn.BCEWithLogitsLoss(pos_weight=pos_weight)
+        if (stage == 'fit' or stage is None) and self.use_class_weights:
+            train_labels = self.trainer.datamodule.train_labels
+            train_labels = torch.tensor(train_labels).to(self.device) 
+            class_weights = compute_class_weights(train_labels, num_classes=2)
+            class_weights = class_weights.float().to(self.device)
+            self.criterion = nn.CrossEntropyLoss(weight=class_weights)
         else:
             # fallback for validation/test stages
-            self.criterion = nn.BCEWithLogitsLoss()
+            self.criterion = nn.CrossEntropyLoss()
 
     # Define the forward pass
     # Defines how input x flows through the model — called during training, validation, and testing
@@ -106,18 +107,9 @@ class DenseNetClassifierBinary(pl.LightningModule):
     # These are called by the Trainer during training/validation
     def training_step(self, batch, batch_idx):
         x, y = batch
-        
-        # Forward pass through the model
-        # Squeeze to remove the extra dimension for binary output
-        # Output (logits) is raw prediction before sigmoid activation
-        logits = self(x).squeeze(1)
-        
-        # Compute loss and accuracy
-        # Convert labels to float for BCE loss
-        loss = self.criterion(logits, y.float())
-        probs = torch.sigmoid(logits)
-        acc = self.train_acc(probs, y)
-        
+        outputs = self(x)
+        loss = self.criterion(outputs, y)
+        acc = self.train_acc(outputs, y)
         # Log the loss and accuracy
         # This logs metrics for visualization (TensorBoard, WandB, etc.) and internal tracking
         self.log("train_loss", loss, 
@@ -137,10 +129,10 @@ class DenseNetClassifierBinary(pl.LightningModule):
     # This is called by the Trainer during validation
     def validation_step(self, batch, batch_idx):
         x, y = batch
-        logits = self(x).squeeze(1)
-        loss = self.criterion(logits, y.float())
-        probs = torch.sigmoid(logits)
-        acc = self.val_acc(probs, y)
+        outputs = self(x)
+        loss = self.criterion(outputs, y)
+        acc = self.val_acc(outputs, y)
+        probs = torch.softmax(outputs, dim=1)
         auroc = self.val_auroc(probs, y)
         self.log("val_loss", loss, 
                  on_step=False, 
@@ -161,10 +153,10 @@ class DenseNetClassifierBinary(pl.LightningModule):
     # Define the test step
     def test_step(self, batch, batch_idx):
         x, y = batch
-        logits = self(x).squeeze(1)
-        loss = self.criterion(logits, y.float())
-        probs = torch.sigmoid(logits)
-        acc = self.test_acc(probs, y)
+        outputs = self(x)
+        loss = self.criterion(outputs, y)
+        acc = self.test_acc(outputs, y)
+        probs = torch.softmax(outputs, dim=1)
         auroc = self.test_auroc(probs, y)
         self.log("test_loss", loss, 
                  on_step=False, 
@@ -188,19 +180,18 @@ class DenseNetClassifierBinary(pl.LightningModule):
             x, _ = batch
         else:
             x = batch
-        logits = self(x).squeeze(1)
-        return torch.sigmoid(logits)
+        outputs = self(x)
+        return torch.softmax(outputs, dim=1)
     
    # Define Optimizer and learning rate scheduler
     def configure_optimizers(self):
         # Filter parameters to optimize
         params_to_optimize = filter(lambda p:p.requires_grad, self.model.parameters())
-        
         # Use AdamW optimizer with specified learning rate and weight decay
         optimizer = optim.AdamW(
             params_to_optimize,
-            lr = self.hparams.learning_rate,
-            weight_decay = self.hparams.weight_decay
+            lr = self.learning_rate,
+            weight_decay = self.weight_decay
         )
         # Use ReduceLROnPlateau scheduler to reduce learning rate on validation loss plateau
         scheduler = ReduceLROnPlateau(
