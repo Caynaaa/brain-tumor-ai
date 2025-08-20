@@ -66,8 +66,7 @@ class CustomDataset(Dataset):
         
         # Get the corresponding label
         labels = self.labels[idx]
-        # Convert label to tensor and ensure it's float for BCE loss
-        labels = torch.tensor(labels, dtype=torch.float32)
+        labels = torch.tensor(labels, dtype=torch.long)
         
         # Apply transformations if provided
         if self.transform:
