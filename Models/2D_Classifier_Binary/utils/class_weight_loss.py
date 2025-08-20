@@ -2,7 +2,7 @@ from sklearn.utils.class_weight import compute_class_weight
 import torch
 import numpy as np
 
-def class_weights(labels: torch.tensor, num_classes: int) -> torch.tensor:
+def compute_class_weights(labels: torch.tensor, num_classes: int) -> torch.tensor:
     """
     Compute class weights for imbalanced datasets.
 
