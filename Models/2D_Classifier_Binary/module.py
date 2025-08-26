@@ -1,214 +1,166 @@
-"""
-This file defines the PyTorch Lightning Module for binary brain tumor classification.
-
-It handles:
-- Loading a pre-trained DenseNet121 model
-- Replacing the classifier head with a binary output layer
-- Optional unfreezing of specific layers for fine-tuning
-- Defining training, validation, and test steps
-- Logging metrics (Binary Accuracy and AUROC)
-- Integrating optimizer and learning rate scheduler
-
-This design separates model logic from data and training pipeline,
-enabling more maintainable and modular experimentation.
-
-Components:
-------------
-1. DenseNetClassifierBinary:
-   - Inherits from pl.LightningModule
-   - Takes training hyperparameters (learning rate, weight decay, layers to unfreeze)
-   - Defines forward pass and step-wise training/validation/test procedures
-   - Logs relevant metrics via `self.log`
-   - Returns a scheduler config compatible with PyTorch Lightning's Trainer
-"""
-
-
-# Import necessary libraries
+# Import necessary library
 import torch
-import torch.nn as nn
 import pytorch_lightning as pl
-import torch.optim as optim
-from torch.optim.lr_scheduler import ReduceLROnPlateau
-from torchvision import models
-from torchmetrics.classification import MulticlassAccuracy, MulticlassAUROC
-from utils import compute_class_weights
+from torchmetrics.classification import BinaryAccuracy, BinaryAUROC, MulticlassAccuracy, MulticlassAUROC
 
-# Define the "Lightning Module" for binary classification
-class DenseNetClassifierBinary(pl.LightningModule):
-    def __init__(self,
-                 learning_rate=1e-3,
-                 weight_decay=1e-5,
-                 unfreeze_layers=None,
-                 use_class_weights = False
-    ):
-        # Initialize the parent class
+class Hybrid_PLmodule(pl.LightningModule):
+    def __init__(self, backbone=None, num_classes=None, manual_device=None):
         super().__init__()
-        # Save hyperparameters for logging
-        self.save_hyperparameters()
+        self.backbone = backbone
+        self.manual_device = manual_device
+        self.num_classes = num_classes
+        
+        # Inject placeholder
+        self.optimizer = None
+        self.scheduler = None
         self.criterion = None
-        self.learning_rate = learning_rate
-        self.weight_decay = weight_decay
-        self.use_class_weights = use_class_weights
         
-        # Load a pre-trained DenseNet121 model
-        backbone = models.densenet121(pretrained=True)
-        
-        # freeze all layers
-        for param in backbone.parameters():
-            param.requires_grad = False 
-        # Unfreeze the classifier head
-        # This allows the model to learn a new binary classification head
-        for name, param in backbone.named_parameters():
-            if "classifier" in name:
-                param.requires_grad = True
-        # Selectively unfreeze specified layers
-        if unfreeze_layers is not None:
-            # Unfreeze specific layers if provided
-            for name, param in backbone.named_parameters():
-                # Check if the layer name matches any in the unfreeze list
-                # and set requires_grad to True
-                if any(layer_name in name for layer_name in unfreeze_layers):
-                    param.requires_grad = True
-        
-        # Replace classifier head
-        num_features = backbone.classifier.in_features
-        # Replace classifier head for binary output
-        backbone.classifier = nn.Linear(num_features, 2)
-        # Store the modified model
-        self.model = backbone
-        
-        # Initialize metrics
-        # Binary Accuracy and AUROC for binary classification
-        self.train_acc = MulticlassAccuracy(num_classes=2)
-        self.val_acc = MulticlassAccuracy(num_classes=2)
-        self.val_auroc = MulticlassAUROC(num_classes=2)
-        self.test_acc = MulticlassAccuracy(num_classes=2)
-        self.test_auroc = MulticlassAUROC(num_classes=2)
+        # metrics
+        self.metrics_initialized = False
     
-    # Setup method to compute pos_Weight for BCEWithLogitsLoss
-    # This is called by PyTorch Lightning Trainer before training starts
-    def setup(self, stage=None):
-        if (stage == 'fit' or stage is None) and self.use_class_weights:
-            train_labels = self.trainer.datamodule.train_labels
-            train_labels = torch.tensor(train_labels, dtype=torch.long).to(self.device) 
-            class_weights = compute_class_weights(train_labels, num_classes=2)
-            class_weights = class_weights.float().to(self.device)
-            self.criterion = nn.CrossEntropyLoss(weight=class_weights)
+    # --- Injection metodhs ---
+    def set_optimizer(self, optimizer, scheduler):
+        self.optimizer = optimizer
+        self.scheduler = scheduler
+    
+    def set_criterion(self, criterion):
+        self.criterion = criterion
+    
+    def configure_optimizers(self):
+        if self.scheduler:
+            return {"optimizer": self.optimizer,
+                    "lr_scheduler": {
+                        "scheduler": self.scheduler,
+                        "monitor": "val_loss",
+                        "interval": "epoch",
+                        "frequency": 1
+                }
+            }
+        return self.optimizer
+    
+    # --- data movement ---
+    def batch_to_device(self, batch, device):
+        x, y = batch
+        target_device = self.manual_device if self.manual_device else device
+        return x.to(target_device, non_blocking=True), y.to(target_device, non_blocking=True)
+    
+    # --- metrics ---
+    def _init_metrics(self, outputs):
+        if self.num_classes is None:
+            self.num_classes = outputs.shape[1] if outputs.ndim > 1 else 1
+        # --- binary ---
+        if self.num_classes <= 2:
+            self.train_acc = BinaryAccuracy().to(self.device)
+            self.val_acc = BinaryAccuracy().to(self.device)
+            self.test_acc = BinaryAccuracy().to(self.device)
+            self.val_auroc = BinaryAUROC().to(self.device)
+            self.test_auroc = BinaryAUROC().to(self.device)
+        # --- multiclass ---
         else:
-            # fallback for validation/test stages
-            self.criterion = nn.CrossEntropyLoss()
-
-    # Define the forward pass
-    # Defines how input x flows through the model — called during training, validation, and testing
+            self.train_acc = MulticlassAccuracy(num_classes=self.num_classes).to(self.device)
+            self.val_acc = MulticlassAccuracy(num_classes=self.num_classes).to(self.device)
+            self.test_acc = MulticlassAccuracy(num_classes=self.num_classes).to(self.device)
+            self.val_auroc = MulticlassAUROC(num_classes=self.num_classes).to(self.device)
+            self.test_auroc = MulticlassAUROC(num_classes=self.num_classes).to(self.device)
+        
+        self.metrics_initialized = True
+    
+    # --- automactly get probs in cases binary outputs ---
+    def get_probs(self, outputs):
+        if outputs.shape[1] == 1:
+            # BCEW style-(sigmoid for 1 neuron output)
+            return torch.sigmoid(outputs).view(-1)
+        else:
+            # CE style-(softmax for multiclass, get probability positif[1] class)
+            return torch.softmax(outputs, dim=1)[:,1]
+        
+    # --- shared step so i not need to handwork ---
+    def shared_step(self, batch, stage):
+        x, y = self.batch_to_device(batch, self.device)
+        outputs = self(x)
+        
+        if not self.metrics_initialized:
+            self._init_metrics(outputs)
+            
+        # casting y for loss and metrics
+        if isinstance(self.criterion, torch.nn.CrossEntropyLoss):
+            y_loss = y.long()
+            y_metrics = y_loss
+        elif isinstance(self.criterion, torch.nn.BCEWithLogitsLoss):
+            y_loss = y.float().unsqueeze(1)
+            y_metrics = y.int().view(-1)
+        
+        loss = self.criterion(outputs, y_loss)
+        probs = self.get_probs(outputs)
+            
+        if stage == 'train':
+            acc = self.train_acc(probs, y_metrics)
+            self.log("train_loss", 
+                 loss, on_step=True, 
+                 on_epoch=True)
+            self.log("train_acc",
+                 acc, on_step=False,
+                 on_epoch=True,
+                 prog_bar=True)
+        
+        elif stage == 'val':
+            acc = self.val_acc(probs, y_metrics)
+            self.val_auroc.update(probs, y_metrics)
+            self.log("val_loss", 
+                     loss, on_epoch=True, 
+                     prog_bar=True)
+            self.log("val_acc", 
+                     acc, on_epoch=True, 
+                     prog_bar=True)
+        
+        elif stage == 'test':
+            acc = self.test_acc(probs, y_metrics)
+            self.test_auroc.update(probs, y_metrics)
+            self.log("test_loss", 
+                     loss, on_epoch=True)
+            self.log("test_acc", 
+                     acc, on_epoch=True, 
+                     prog_bar=True)
+        return loss
+    
+    # --- forward pass ---
     def forward(self, x):
-        return self.model(x)
+        return self.backbone(x)
     
-    # Define the training and validation steps
-    # These are called by the Trainer during training/validation
+    # --- training loop ---        
     def training_step(self, batch, batch_idx):
-        x, y = batch
-        outputs = self(x)
-        loss = self.criterion(outputs, y)
-        acc = self.train_acc(outputs, y)
-        # Log the loss and accuracy
-        # This logs metrics for visualization (TensorBoard, WandB, etc.) and internal tracking
-        self.log("train_loss", loss, 
-                 on_step=True, 
-                 on_epoch=True
-        )
-        self.log("train_acc", acc, 
-                 on_step=False, 
-                 on_epoch=True,
-                 prog_bar=True
-        )
-        # Return the loss for optimization
-        # This is used by the optimizer to update model weights
-        return loss
-    
-    # Define the validation step
-    # This is called by the Trainer during validation
+       return self.shared_step(batch, 'train')
+   
+    # --- validation loop ---
     def validation_step(self, batch, batch_idx):
-        x, y = batch
-        outputs = self(x)
-        loss = self.criterion(outputs, y)
-        acc = self.val_acc(outputs, y)
-        probs = torch.softmax(outputs, dim=1)
-        auroc = self.val_auroc(probs, y)
-        self.log("val_loss", loss, 
-                 on_step=False, 
-                 on_epoch=True
-        )
-        self.log("val_acc", acc,
-                 on_step=False, 
-                 on_epoch=True,
-                 prog_bar=True
-        )
-        self.log("val_auroc", auroc,
-                 on_step=False, 
-                 on_epoch=True,
-                 prog_bar=True
-        )
-        return loss
+        return self.shared_step(batch, 'val')
     
-    # Define the test step
+    # --- test loop ---
     def test_step(self, batch, batch_idx):
-        x, y = batch
-        outputs = self(x)
-        loss = self.criterion(outputs, y)
-        acc = self.test_acc(outputs, y)
-        probs = torch.softmax(outputs, dim=1)
-        auroc = self.test_auroc(probs, y)
-        self.log("test_loss", loss, 
-                 on_step=False, 
-                 on_epoch=True
-        )
-        self.log("test_acc", acc,
-                 on_step=False, 
-                 on_epoch=True,
-                 prog_bar=True
-        )
-        self.log("test_auroc", auroc,
-                 on_step=False, 
-                 on_epoch=True,
-                 prog_bar=True
-        )
-    
-    # Define prediction step
-    # This is called when making predictions (e.g., during inference)
+        _ = self.shared_step(batch, 'test')
+        return None
+        
+    def on_validation_epoch_end(self):
+        if self.metrics_initialized:
+            val_auroc = self.val_auroc.compute()
+            self.log("val_auroc", 
+                val_auroc, on_epoch=True,
+                prog_bar=True)
+            self.val_auroc.reset()
+            
+    def on_test_epoch_end(self):
+        if self.metrics_initialized:
+            test_auroc = self.test_auroc.compute()
+            self.log("test_auroc", 
+                test_auroc, on_epoch=True, 
+                prog_bar=True)  
+            self.test_auroc.reset()      
+
+    # --- predict step ---
     def predict_step(self, batch, batch_idx, dataloader_idx=0):
         if isinstance(batch, (list, tuple)) and len(batch) == 2:
-            x, _ = batch
+            x, _ = self.batch_to_device(batch, self.device)
         else:
-            x = batch
+            x = batch.to(self.manual_device if self.manual_device else self.device, non_blocking=True)
         outputs = self(x)
-        return torch.softmax(outputs, dim=1)
-    
-   # Define Optimizer and learning rate scheduler
-    def configure_optimizers(self):
-        # Filter parameters to optimize
-        params_to_optimize = filter(lambda p:p.requires_grad, self.model.parameters())
-        # Use AdamW optimizer with specified learning rate and weight decay
-        optimizer = optim.AdamW(
-            params_to_optimize,
-            lr = self.learning_rate,
-            weight_decay = self.weight_decay
-        )
-        # Use ReduceLROnPlateau scheduler to reduce learning rate on validation loss plateau
-        scheduler = ReduceLROnPlateau(
-            optimizer, 
-            mode='min', 
-            factor=0.1, 
-            patience=2
-        )
-        # Return the optimizer and scheduler configuration
-        # This is compatible with PyTorch Lightning's Trainer
-        # Lightning will automatically call scheduler.step() using 'monitor' key ('val_loss')
-        return {
-            "optimizer": optimizer,
-            "lr_scheduler": {
-                "scheduler": scheduler,
-                "monitor": "val_loss",
-                "interval": "epoch",
-                "frequency": 1
-            }
-        }
+        return self.get_probs(outputs)
