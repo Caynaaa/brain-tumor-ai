@@ -16,6 +16,7 @@ def compute_poss_weight(labels: torch.tensor) -> torch.tensor:
     
     # Count positive and negative samples
     # pos_count is the number of positive samples (label == 1)
+    labels = torch.as_tensor(labels, dtype=torch.float)
     pos_count = labels.sum().item()
     neg_count = len(labels) - pos_count
     

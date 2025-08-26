@@ -24,5 +24,5 @@ def make_random_sampler(labels: torch.tensor) -> torch.utils.data.WeightedRandom
     return torch.utils.data.WeightedRandomSampler(
         weights=samples_weight,
         num_samples=len(samples_weight),
-        replacement=True  # Sample with replacement
+        replacement=False
     )

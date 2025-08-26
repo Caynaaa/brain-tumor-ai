@@ -2,7 +2,7 @@ from sklearn.utils.class_weight import compute_class_weight
 import torch
 import numpy as np
 
-def compute_class_weights(labels: torch.tensor, num_classes: int) -> torch.tensor:
+def compute_class_weights(labels: torch.tensor) -> torch.tensor:
     """
     Compute class weights for imbalanced datasets.
 
@@ -16,7 +16,7 @@ def compute_class_weights(labels: torch.tensor, num_classes: int) -> torch.tenso
     labels = labels.cpu().numpy().astype(int)
     class_weights = compute_class_weight(
         class_weight = "balanced",
-        classes = np.arange(num_classes),
+        classes = np.unique(labels),
         y = labels
     )
     return torch.tensor(class_weights, dtype=torch.float)
