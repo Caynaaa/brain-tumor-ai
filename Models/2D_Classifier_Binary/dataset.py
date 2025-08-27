@@ -1,3 +1,30 @@
+"""
+CustomDataset — PyTorch Dataset for Flexible Image Input Formats
+
+This module defines a custom Dataset class compatible with PyTorch DataLoader, designed for
+binary or multi-class image classification tasks.
+
+Key Features:
+- Flexible Input Types: Accepts image data as file paths (`str`), `PIL.Image` objects, or NumPy arrays.
+- Automatic RGB Conversion: Ensures all inputs are converted to 3-channel RGB format, even for grayscale images.
+- Transform Support: Compatible with Albumentations or similar libraries via the `transform` argument.
+- Label Handling: Converts labels to `torch.long` tensors for direct use in classification models.
+
+Usage:
+Instantiate `CustomDataset` with:
+- img_input: list of image paths, `PIL.Image` objects, or NumPy arrays.
+- labels: list or array of integer class labels.
+- transform: optional Albumentations transform pipeline.
+
+Example:
+    dataset = CustomDataset(img_paths, labels, transform=transform_pipeline)
+    img, label = dataset[0]
+
+Note:
+This class is designed for flexibility in experiments and can be extended for additional preprocessing steps.
+"""
+
+
 import torch
 import numpy as np
 from PIL import Image
