@@ -1,3 +1,36 @@
+"""
+DataModule — PyTorch Lightning Data Management for Brain Tumor Classification
+
+This module implements a `LightningDataModule` that organizes dataset loading, transformations,
+and batching for training, validation, and testing in the binary brain tumor classification project.
+
+Key Features:
+- Unified Data Handling: Encapsulates train, validation, and test dataset preparation in one place.
+- Flexible Input: Accepts pre-split datasets as `(images, labels)` tuples for each phase.
+- Custom Transforms: Integrates with Albumentations-based transforms from `transform.py` for preprocessing.
+- Sampler Support: Optional random sampler for balanced training when dealing with class imbalance.
+- Reproducibility: Automatically sets a fixed random seed to ensure consistent results across runs.
+
+Usage:
+    data_module = DataModule(
+        train_data=(train_imgs, train_labels),
+        val_data=(val_imgs, val_labels),
+        test_data=(test_imgs, test_labels),
+        batch_size=64,
+        num_workers=4,
+        use_sampler=True,
+        seed=42
+    )
+
+    trainer.fit(model, datamodule=data_module)
+
+Notes:
+- The `train_dataloader`, `val_dataloader`, and `test_dataloader` methods return ready-to-use
+  PyTorch DataLoader objects.
+- Sampler usage is recommended for datasets with significant class imbalance.
+"""
+
+
 import torch
 import pytorch_lightning as pl
 from utils import make_random_sampler, set_seed
@@ -14,19 +47,6 @@ class DataModule(pl.LightningDataModule):
                  num_workers=2,
                  use_sampler=False,
                  seed = 42):
-        
-        
-        """
-        PyTorch Lightning DataModule for binary brain tumor classification.
-
-        Args:
-            train_data (tuple): Tuple containing training image paths and labels.
-            val_data (tuple): Tuple containing validation image paths and labels.
-            batch_size (int, optional): Number of samples per batch. Defaults to 64.
-            img_size (tuple, optional): Target image size (height, width) for resizing. Defaults to (224, 224).
-            num_workers (int, optional): Number of subprocesses used for data loading. Defaults to 4.
-        """
-
         
         # Initialize the parent class
         super().__init__()
