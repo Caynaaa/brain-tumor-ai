@@ -1,3 +1,32 @@
+"""
+Hybrid_PLmodule — Flexible PyTorch Lightning Module with Backbone & Loss Injection
+
+This module defines a highly configurable PyTorch Lightning model wrapper that supports:
+- Backbone Injection: Plug any custom PyTorch backbone model (e.g., CNN, Transformer).
+- Optimizer/Scheduler Injection: Pass external optimizer and LR scheduler instead of hardcoding in `configure_optimizers`.
+- Criterion Injection: Dynamically use either `CrossEntropyLoss` or `BCEWithLogitsLoss` without code changes.
+- Optional Manual Device Control: Ability to manually assign the computation device for batch transfers, useful when debugging Lightning's device handling.
+- Two Loss Modes Supported:
+    - CrossEntropyLoss (multi-class classification)
+    - BCEWithLogitsLoss (binary classification with class weights)
+- Automatic Metric Initialization: Detects task type (binary or multiclass) and sets up appropriate accuracy and AUROC metrics using `torchmetrics`.
+- Probability Handling: Outputs are converted to probabilities automatically depending on the loss function type.
+- Shared Step Logic: Centralizes training, validation, and test steps to reduce redundancy.
+- Predict Mode Support: Returns class probabilities for inference pipelines.
+
+Key Advantages:
+- Maintains PyTorch Lightning’s clean structure while preserving manual control where needed.
+- Proven to improve performance stability in scenarios where default Lightning device/method handling reduced accuracy.
+- Can be easily extended to other loss functions and metrics.
+
+Example Usage:
+    model = Hybrid_PLmodule(backbone=my_model, num_classes=2, manual_device="cuda:0")
+    model.set_criterion(torch.nn.BCEWithLogitsLoss(pos_weight=...))
+    model.set_optimizer(optimizer, scheduler)
+    trainer.fit(model, datamodule=my_data_module)
+"""
+
+
 # Import necessary library
 import torch
 import pytorch_lightning as pl
