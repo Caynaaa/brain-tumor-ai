@@ -184,4 +184,5 @@ checkpoint/
 save_models/
 logs/
 *.log
+*.tfevent.*
 
