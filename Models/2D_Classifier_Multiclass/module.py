@@ -60,33 +60,26 @@ class NN_PLmodule(pl.LightningModule):
         probs = torch.softmax(outputs, dim=1)
         
         if stage == "train":
-            acc = self.train_acc(probs, y_metrics)
+            self.train_acc.update(probs, y_metrics)
             self.log("train_loss",
-                     loss, on_step=True,
-                     on_epoch=True)
-            self.log("train_acc",
-                     acc, on_step=False,
-                     on_epoch=True,
-                     prog_bar=True)
-        
+                    loss, 
+                    on_step=True,
+                    on_epoch=True)
+    
         elif stage == "val":
-            acc = self.val_acc(probs, y_metrics)
+            self.val_acc.update(probs, y_metrics)
             self.val_auroc.update(probs, y_metrics)
             self.log("val_loss",
-                     loss, on_epoch=True,
-                     prog_bar=True)
-            self.log("val_acc",
-                     acc, on_epoch=True,
-                     prog_bar=True)
-        
+                loss, 
+                on_epoch=True,
+                prog_bar=True)
+            
         elif stage == "test":
-            acc = self.test_acc(probs, y_metrics)
+            self.test_acc.update(probs, y_metrics)
             self.test_auroc.update(probs, y_metrics)
             self.log("test_loss",
-                     loss, on_epoch=True)
-            self.log("test_acc",
-                     acc, on_epoch=True,
-                     prog_bar=True)
+                    loss, 
+                    on_epoch=True)
         return loss
     
     # --- forward pass ---
@@ -106,18 +99,33 @@ class NN_PLmodule(pl.LightningModule):
         _ = self.shared_step(batch, "test")
         return None
     
-    def on_validation_epoch_end(self):
-        val_auroc = self.val_auroc.compute()
-        self.log("val_auroc",
-                 val_auroc, on_epoch=True,
+    # --- train epoch end ---
+    def on_train_epoch_end(self):
+        self.log("train_acc",
+                 self.train_acc.compute(),
                  prog_bar=True)
+        self.train_acc.reset()
+    
+    # --- val epoch end ---
+    def on_validation_epoch_end(self):
+        self.log("val_acc",
+                self.val_acc.compute(), 
+                prog_bar=True)
+        self.val_acc.reset()
+        self.log("val_auroc",
+                self.val_auroc.compute(), 
+                prog_bar=True)
         self.val_auroc.reset()
     
+    # --- test epoch end ---
     def on_test_epoch_end(self):
-        test_auroc = self.test_auroc.compute()
+        self.log("test_acc",
+                self.test_acc.compute(), 
+                prog_bar=True)
+        self.test_acc.reset()
         self.log("test_auroc",
-                 test_auroc, on_epoch=True,
-                 prog_bar=True)
+                self.test_auroc.compute(), 
+                prog_bar=True)
         self.test_auroc.reset()
         
     # --- predict step ---
